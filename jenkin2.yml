@@ -1,0 +1,57 @@
+---
+- name: Install OpenJDK 17 and Jenkins
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt repositories
+      apt:
+        update_cache: yes
+
+    - name: Install dependencies (fontconfig and OpenJDK 17)
+      apt:
+        name:
+          - fontconfig
+          - openjdk-17-jre
+        state: present
+
+    - name: Verify Java version
+      command: java -version
+      register: java_version_output
+      failed_when: "'17.0' not in java_version_output.stderr"
+      ignore_errors: no
+
+    - name: Download Jenkins keyring
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+        mode: '0644'
+
+    - name: Add Jenkins repository
+      copy:
+        content: |
+          deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/
+        dest: /etc/apt/sources.list.d/jenkins.list
+
+    - name: Update apt cache after adding Jenkins repo
+      apt:
+        update_cache: yes
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+
+    - name: Start Jenkins service
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Verify Jenkins is running
+      shell: systemctl is-active jenkins
+      register: jenkins_status
+      changed_when: false
+
+    - name: Debug Jenkins status
+      debug:
+        msg: "Jenkins service status: {{ jenkins_status.stdout }}"

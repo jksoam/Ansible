@@ -1,0 +1,6 @@
+all:
+  hosts:
+    ec2-instance:
+      ansible_host: 98.80.11.39       # Example: 12.34.56.78
+      ansible_user: ubuntu                # Or ec2-user, centos, depending on your AMI
+      ansible_ssh_private_key_file: /home/jksoam/ansible-jenkins/vk1234.pem  # Path to your private key
