@@ -1,0 +1,95 @@
+---
+- name: Install Maven on Jenkins Slave (Ubuntu)
+  hosts: jenkins_slave
+  become: true
+  vars:
+    maven_version: "3.9.6"
+    maven_major: "3"
+    maven_home: "/opt/maven"
+    maven_download_url: "https://dlcdn.apache.org/maven/maven-{{ maven_major }}/{{ maven_version }}/binaries/apache-maven-{{ maven_version }}-bin.tar.gz"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name: 
+          - openjdk-11-jdk
+          - wget
+          - tar
+        state: present
+
+    - name: Create Maven installation directory
+      file:
+        path: "{{ maven_home }}"
+        state: directory
+        mode: '0755'
+
+    - name: Download Maven
+      get_url:
+        url: "{{ maven_download_url }}"
+        dest: "/tmp/apache-maven-{{ maven_version }}-bin.tar.gz"
+        mode: '0644'
+
+    - name: Extract Maven archive
+      unarchive:
+        src: "/tmp/apache-maven-{{ maven_version }}-bin.tar.gz"
+        dest: "{{ maven_home }}"
+        remote_src: yes
+        extra_opts: "--strip-components=1"
+        creates: "{{ maven_home }}/bin/mvn"
+
+    - name: Create Maven environment file
+      copy:
+        dest: /etc/profile.d/maven.sh
+        content: |
+          export MAVEN_HOME={{ maven_home }}
+          export M2_HOME={{ maven_home }}
+          export PATH=${MAVEN_HOME}/bin:${PATH}
+        mode: '0644'
+
+    - name: Create Maven configuration directory
+      file:
+        path: "{{ ansible_env.HOME }}/.m2"
+        state: directory
+        mode: '0755'
+
+    - name: Set JAVA_HOME in bashrc
+      lineinfile:
+        path: /etc/profile.d/java.sh
+        create: yes
+        line: 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64'
+        mode: '0644'
+
+    - name: Source profile in bashrc
+      lineinfile:
+        path: /etc/bash.bashrc
+        line: 'source /etc/profile.d/maven.sh'
+        create: yes
+
+    - name: Verify Maven installation
+      shell: |
+        source /etc/profile.d/maven.sh
+        {{ maven_home }}/bin/mvn --version
+      register: maven_version_result
+      changed_when: false
+
+    - name: Display Maven version
+      debug:
+        var: maven_version_result.stdout_lines
+
+    - name: Clean up downloaded archive
+      file:
+        path: "/tmp/apache-maven-{{ maven_version }}-bin.tar.gz"
+        state: absent
+
+    - name: Ensure correct permissions
+      file:
+        path: "{{ maven_home }}"
+        owner: root
+        group: root
+        recurse: yes
+        mode: '0755'
